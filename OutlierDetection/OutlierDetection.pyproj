@@ -22,6 +22,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="dataUtility.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="detectOutliers.py">
       <SubType>Code</SubType>
     </Compile>

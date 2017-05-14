@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 import sys
 import pandas as pd
@@ -15,8 +15,9 @@ class sensorData(object):
         ##################################################################################################################################
         self.columnsNames = ['Ext_Tem','Ext_Tem_units','Ext_Umi','Ext_Umi_units','Ext_Vvi','Ext_Vvi_units','Int_Pu1','Int_Pu1_units','Int_Pu2',
                         'Int_Pu2_units','Int_Tem','Int_Tem_histe','Int_Tem_ref','Int_Tem_units','Int_Umi','Int_Umi_histe','Int_Umi_ref',
-                        'Int_Umi_units','dataId','dataTimeStamp','id','recordStamp']
+                        'Int_Umi_units','dataId','dataTimeStamp','id','sensorTimeStamp']
         ##################################################################################################################################
+        self.__frameIntervals = None
     
     def loadJsonData(self, jsonDataFolder):
         sensorData = [] 
@@ -28,8 +29,8 @@ class sensorData(object):
                     item = {}
                     item['id'] = data['id']
                     item ['dataId'] = data['record']['sdata'][0]['ids']
-                    item ['recordStamp'] = data['record']['sdata'][0]['timestamp']
-                    item ['dataTimeStamp'] = data['timestamp'][:19]
+                    item ['dataTimeStamp'] = data['record']['sdata'][0]['timestamp']
+                    item ['sensorTimeStamp'] = data['timestamp'][:19]
                     for sensor in data['record']['sdata'][0]['sensors']:
                         type = sensor['stype']
                         if type == 'Int_Tem' or type == 'Int_Umi':
@@ -42,7 +43,14 @@ class sensorData(object):
 
         #sensorData = pd.Series(sensorData) #if we want to transform data to a series
         self.__data = pd.DataFrame(sensorData)
-        self.__data['dataTimeStamp'] = pd.to_datetime(self.__data['dataTimeStamp'],format='%Y-%m-%d_%H:%M:%S')
+
+        #remove some unconsistent data
+        self.__data = self.__data.drop(self.__data.index[[0,1,2,3,5,6]])
+
+        
+
+        self.__data['dataTimeStamp'] = pd.to_datetime(self.__data['dataTimeStamp'],format='%Y-%m-%d %H:%M:%S')
+        self.__data['sensorTimeStamp'] = pd.to_datetime(self.__data['sensorTimeStamp'],format='%Y-%m-%d_%H:%M:%S')
         self.__data['date'] = self.__data['dataTimeStamp']
         self.__data['dataTimeStamp'] = (self.__data['dataTimeStamp'] - datetime(1970,1,1)).dt.total_seconds()
                      
@@ -65,6 +73,22 @@ class sensorData(object):
         plt.savefig(title+".png")
         plt.show()
 
+    def computeFramesIntervals(self):
+        dataFramesIntervals = []                
+        currentIndex=0        
+        for index in range (len(self.dataFrame)-1):
+            timeDelta = (self.dataFrame['date'].values[index+1] - self.dataFrame['date'].values[index])
+            days =  timeDelta.astype('timedelta64[D]')/np.timedelta64(1, 'D')            
+            currentIndex+=1
+            if days>0:                
+                dataFramesIntervals.append(self.dataFrame[index - (currentIndex-1):index+1])
+                currentIndex = 0                                  
+        dataFramesIntervals.append(self.dataFrame[len(self.dataFrame)-1-currentIndex:len(self.dataFrame)])   
+        self.__frameIntervals = dataFramesIntervals              
+        return dataFramesIntervals
+                
+            
+
     def plotColumns(self, x, columns):
         f, axarr = plt.subplots(len(columns), sharex=True)
         plt.xlabel(x)
@@ -79,6 +103,9 @@ class sensorData(object):
         plt.savefig(figTitle+".png")
         plt.show()
 
+    def computeMeanAndVariance(self, columnName):
+        return (np.mean(self.dataFrame[columnName].values), np.std(self.dataFrame[columnName].values))
+        
 
     def plotIndividualColumn(self):
         #################################################

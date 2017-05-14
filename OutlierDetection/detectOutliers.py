@@ -32,7 +32,7 @@ class outlierDetector(object):
         else:
             return None
 
-    def detectOutlierFFT(self, yColumn, threshold_freq=8, frequency_amplitude=20, windowSize = 10, printFigure = True):
+    def detectOutlierFFT(self, yColumn, threshold_freq=8, frequency_amplitude = 20, windowSize = 10, printFigure = True):        
         figTitle = yColumn +" - Outliers using FFT for threshold_freq="+str(threshold_freq)+" and frequency_amplitude="+ str(frequency_amplitude)
         yValues = self.data[yColumn].values
         xValues = self.data[self.xColumn].values   
@@ -41,7 +41,7 @@ class outlierDetector(object):
         for ii in range(int(windowSize/2), yValues.size, int(windowSize/2)):
             outlier_position = self.__detect_outlier_position_by_fft(yValues[ii-int(windowSize/2):ii+int(windowSize/2)],threshold_freq,frequency_amplitude)
             if outlier_position is not None:
-                outlier_positions.append(ii + outlier_position[0] - 5)
+                outlier_positions.append(ii + outlier_position[0] - int(windowSize/2))
         outlier_positions = list(set(outlier_positions))
 
         if (printFigure):
@@ -60,7 +60,7 @@ class outlierDetector(object):
             plt.show()
         return outlier_positions
 
-    def detectOutlierPeculiarity(self,yColumn,max_anoms=0.05, alpha=0.001, direction='both', printFigure=True):
+    def detectOutlierPeculiarity(self,yColumn,max_anoms = 0.05, alpha = 0.001, direction='both', printFigure=True):
         twoColumnsFrame = self.data[[self.xColumn, yColumn]]
         results = detect_ts(twoColumnsFrame, max_anoms=0.05, alpha=0.001, direction='both')        
 

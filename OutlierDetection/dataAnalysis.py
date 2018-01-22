@@ -121,6 +121,55 @@ class dataAnalysis(object):
 
         ######################################################################################
 
+    def fftAnalysis_interval(self,printFigure, displayFrequencyAnalisys, frame_interval_index, columns = None):            
+        frameIntervals = self.sensorData.computeFramesIntervals()
+        ######################################################################################
+
+        # consider a window of 1 day
+        data = frameIntervals[frame_interval_index]
+        windowSize = 10
+        outlierDetector = dO.outlierDetector(data,'date')
+        dict = {
+                'Ext_Tem':25,
+                'Ext_Umi':10,
+                'Int_Umi':500,
+                'Int_Pu1':250,
+                'Int_Pu2':250,
+                'Ext_Vvi':5,
+                'Int_Tem':50
+                }        
+
+        #exteTempOutliers = outlierDetector.detectOutlierFFT('Ext_Tem',windowSize -2,25,windowSize= windowSize, printFigure=print)        
+        #exteUmiOutliers = outlierDetector.detectOutlierFFT('Ext_Umi',windowSize -2,10,windowSize= windowSize,printFigure=print)        
+        #exteIntUmiOutliers = outlierDetector.detectOutlierFFT('Int_Umi',windowSize -2,500,windowSize= windowSize,printFigure=print)        
+        #exteIntPuOutliers = outlierDetector.detectOutlierFFT('Int_Pu1',windowSize -2,250,windowSize= windowSize,printFigure=print)        
+        #exteIntPu2Outliers = outlierDetector.detectOutlierFFT('Int_Pu2',windowSize -2,250,windowSize= windowSize,printFigure=print)
+        #exteExt_VviOutliers = outlierDetector.detectOutlierFFT('Ext_Vvi',windowSize -2,5,windowSize= windowSize,printFigure=print)
+        exteInt_TemOutliers = outlierDetector.detectOutlierFFT('Int_Tem',windowSize -2,50,windowSize= windowSize,printFigure=print)
+
+        if columns is None:
+            columns = list(dict.keys())
+
+        handles = [] 
+        
+        plt.figure(figsize=(12, len(columns)));
+        for i in range(len(columns)):
+            outliers = outlierDetector.detectOutlierFFT(columns[i],windowSize -2,dict[columns[i]],windowSize= windowSize, printFigure=False)  
+            yValues = outlierDetector.data[columns[i]].values
+            xValues = outlierDetector.data[outlierDetector.xColumn].values      
+            handle_obs = plt.plot(xValues, yValues, c = dO.COLOR_PALETTE[i], label=columns[i])
+            handles.append(handle_obs[0])
+            if len(outliers) > 0:
+                plt.plot(xValues[outliers], yValues[np.asanyarray(outliers)], 'ro');
+        figTitle = "- Outliers using FFT -"
+        plt.legend(handles=handles, loc="upper left")
+        plt.title(figTitle)
+        plt.xlabel= outlierDetector.xColumn
+        plt.show()
+
+
+        ######################################################################################    
+
     #Peculiarity Analysis
     def peculiarityAnalysis(self, print):
         data = self.sensorData.dataFrame

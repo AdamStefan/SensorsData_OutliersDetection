@@ -19,7 +19,7 @@ from __future__ import print_function
 
 from os import path
 
-import numpy
+import numpy as np
 import tensorflow as tf
 import pandas as pd
 
@@ -53,6 +53,7 @@ class _LSTMModel(ts_model.SequentialTimeSeriesModel):
         self._lstm_cell = None
         self._lstm_cell_run = None
         self._predict_from_lstm_output = None
+        self.epsilon = 0.000001
 
     def initialize_graph(self, input_statistics):
         """Save templates for components, which can then be used repeatedly.
@@ -91,12 +92,12 @@ class _LSTMModel(ts_model.SequentialTimeSeriesModel):
     def _transform(self, data):
         """Normalize data based on input statistics to encourage stable training."""
         mean, variance = self._input_statistics.overall_feature_moments
-        return (data - mean) / variance
+        return (data - mean) / (variance + self.epsilon)
 
     def _de_transform(self, data):
         """Transform data back to the input scale."""
         mean, variance = self._input_statistics.overall_feature_moments
-        return data * variance + mean
+        return data * (variance + self.epsilon) + mean
 
     def _filtering_step(self, current_times, current_values, state, predictions):
         """Update model state based on observations.
@@ -151,8 +152,32 @@ class _LSTMModel(ts_model.SequentialTimeSeriesModel):
             "Exogenous inputs are not implemented for this example.")
 
 
+def predict(frame, columns, model_dir = "Models"):
 
-def train_and_predict(frame_interval, columns):
+    estimator = ts_estimators.TimeSeriesRegressor(
+        model=_LSTMModel(num_features=len(columns), num_units=128),
+        optimizer=tf.train.AdamOptimizer(0.001), model_dir=model_dir)    
+
+    #compute the prediction for the next k steps    
+    x =  np.arange(len(frame))
+    y = np.zeros((len(frame),len(columns)))
+    for i in range(len(columns)):
+        y[:,i]=frame[columns[i]].values
+    
+    data =  {
+                tf.contrib.timeseries.TrainEvalFeatures.TIMES: x,
+                tf.contrib.timeseries.TrainEvalFeatures.VALUES: y,
+            }
+    reader = tf.contrib.timeseries.NumpyReader(data) #entire data
+    evaluation_input_fn = tf.contrib.timeseries.WholeDatasetInputFn(reader) # evaluate all the data
+    evaluation = estimator.evaluate(input_fn=evaluation_input_fn, steps=1)       
+
+    return evaluation["observed"][0], evaluation["mean"][0]
+
+
+def train_and_predict(frame_interval, columns, number_of_points= None, number_of_steps_to_train=100, model_dir = "Models"):
+    #number_of_points = from the frame_interval the subset starting from 0 to number_of_points will be used for training
+    #number_of_steps_to_train = how many steps (forward-backward) will be used for training
     print(columns)   
     values = []
     num_features = len(columns)
@@ -165,19 +190,31 @@ def train_and_predict(frame_interval, columns):
     csv_file_name = "sensorData_frame.csv"
     _data_frame.to_csv(csv_file_name, sep=',', encoding='utf-8', header=False) # save the data to a csv file
     tf.logging.set_verbosity(tf.logging.INFO)    
-    reader = tf.contrib.timeseries.CSVReader(
+    if number_of_points is None:    
+        reader = tf.contrib.timeseries.CSVReader(
         csv_file_name,
         column_names=((tf.contrib.timeseries.TrainEvalFeatures.TIMES,)
                     + (tf.contrib.timeseries.TrainEvalFeatures.VALUES,) * num_features))
+    else:
+        x =  np.arange(len(frame_interval))
+        y = np.zeros((len(frame_interval),len(columns)))
+        for i in range(len(columns)):
+            y[:,i]=frame_interval[columns[i]].values
+    
+        data =  {
+                    tf.contrib.timeseries.TrainEvalFeatures.TIMES: x[0:number_of_points],
+                    tf.contrib.timeseries.TrainEvalFeatures.VALUES: y[0:number_of_points],
+                }
+        reader = tf.contrib.timeseries.NumpyReader(data) 
 
-    train_input_fn = tf.contrib.timeseries.RandomWindowInputFn(
-        reader, batch_size=4, window_size=64)
+    train_input_fn = tf.contrib.timeseries.RandomWindowInputFn(reader, batch_size=4, window_size=64)
 
     estimator = ts_estimators.TimeSeriesRegressor(
         model=_LSTMModel(num_features=num_features, num_units=128),
-        optimizer=tf.train.AdamOptimizer(0.001))
+        optimizer=tf.train.AdamOptimizer(0.001), model_dir=model_dir)    
+    
 
-    estimator.train(input_fn=train_input_fn, steps=3000)
+    estimator.train(input_fn=train_input_fn, steps=number_of_steps_to_train)
     evaluation_input_fn = tf.contrib.timeseries.WholeDatasetInputFn(reader)
     evaluation = estimator.evaluate(input_fn=evaluation_input_fn, steps=1)
     # Predict starting after the evaluation
@@ -200,6 +237,8 @@ def train_and_predict(frame_interval, columns):
     plt.legend(handles=[observed_lines[0], evaluated_lines[0], predicted_lines[0]],
                 loc="upper left")
     plt.savefig('predict_result.jpg')
+
+    return estimator
         
      
 

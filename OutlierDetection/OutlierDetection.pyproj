@@ -22,6 +22,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="arima_analysis.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="dataAnalysis.py">
       <SubType>Code</SubType>
     </Compile>
@@ -33,6 +36,9 @@
     </Compile>
     <Compile Include="entry.py" />
     <Compile Include="neural_net_time_series.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="testsqllite.py">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>

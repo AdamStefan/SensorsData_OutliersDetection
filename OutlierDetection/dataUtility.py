@@ -80,10 +80,14 @@ class sensorData(object):
             timeDelta = (self.dataFrame['date'].values[index+1] - self.dataFrame['date'].values[index])
             days =  timeDelta.astype('timedelta64[D]')/np.timedelta64(1, 'D')            
             currentIndex+=1
-            if days>0:                
-                dataFramesIntervals.append(self.dataFrame[index - (currentIndex-1):index+1])
+            if days>0:
+                frame = self.dataFrame[index - (currentIndex-1):index+1]
+                if len(frame)>1:                
+                    dataFramesIntervals.append(self.dataFrame[index - (currentIndex-1):index+1])
                 currentIndex = 0                                  
-        dataFramesIntervals.append(self.dataFrame[len(self.dataFrame)-1-currentIndex:len(self.dataFrame)])   
+        frame = self.dataFrame[len(self.dataFrame)-1-currentIndex:len(self.dataFrame)]
+        if len(frame)>1:
+            dataFramesIntervals.append(frame)   
         self.__frameIntervals = dataFramesIntervals              
         return dataFramesIntervals
                 

@@ -60,20 +60,18 @@ class outlierDetector(object):
             plt.show()
         return outlier_positions
 
-    def detect_outlier_from_prediction(self, time ,observed_data,predicted_data, last_k_steps , columns , print_outliers = True):
+    def detect_outlier_from_prediction(self, time, observed_data, predicted_data, last_k_steps, columns, print_outliers = True, title='outlier_detection'):
+
         mean_values = np.mean(observed_data[0:len(observed_data)- last_k_steps],axis=0)
         std_values = np.std(observed_data[0:len(observed_data)- last_k_steps],axis=0)
         epsilon = 1e-8
         observed_data_normalized = (observed_data-mean_values)/(std_values + epsilon)
         predicted_data_normalized = (predicted_data -mean_values)/(std_values + epsilon)
 
-
-
+        plt.title(title)
         plt.figure(figsize=(15, len(mean_values)))
         plt.axvline(time[len(observed_data)- last_k_steps], linestyle="dotted", linewidth=4, color='g')
-
-        #observed_lines = plt.plot(np.arange(len(observed_data)), observed_data, label="observation", color="k")
-        #evaluated_lines = plt.plot(np.arange(len(observed_data)), predicted_data, label="evaluation", color="g")
+        
         handles = [] 
         for feature_index in range(len(mean_values)):
            handle_obs = plt.plot(time,observed_data[:,feature_index],color=COLOR_PALETTE[feature_index],label=columns[feature_index]+"-observation")
@@ -81,9 +79,7 @@ class outlierDetector(object):
            handles.append(handle_obs[0])
            handles.append(handle_pred[0])
         
-
-        plt.legend(handles=handles, loc="upper left")
-               
+        plt.legend(handles=handles, loc="upper left")               
 
         outlier_positions=[]
         acumulator = 0
@@ -110,8 +106,6 @@ class outlierDetector(object):
 
         plt.show()
         return outlier_positions
-
-
                                 
     def detectOutlierPeculiarity(self,yColumn,max_anoms = 0.05, alpha = 0.001, direction='both', printFigure=True):
         twoColumnsFrame = self.data[[self.xColumn, yColumn]]

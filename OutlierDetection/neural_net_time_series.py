@@ -175,7 +175,16 @@ def predict(frame, columns, model_dir = "Models"):
     return evaluation["observed"][0], evaluation["mean"][0]
 
 
-def train_and_predict(frame_interval, columns, number_of_points= None, number_of_steps_to_train=100, model_dir = "Models"):
+def train_and_predict(frame_interval, columns, parameters):
+
+    number_of_points = parameters["number_of_points_used_for_training"]    
+    number_of_steps_to_train = parameters["number_of_steps_to_train"]
+    model_dir =  "Models" if "model_dir" not in parameters else  parameters["model_dir"] 
+    num_units = 128 if "num_units" in parameters else parameters["num_units"]
+    windows_size = 64 if "windows_size" in parameters else parameters["windows_size"]
+    batch_size = 4 if "batch_size" in parameters else parameters["batch_size"]
+    learning_rate = 0.001 if "learning_rate" in parameters else parameters["learning_rate"]    
+
     #number_of_points = from the frame_interval the subset starting from 0 to number_of_points will be used for training
     #number_of_steps_to_train = how many steps (forward-backward) will be used for training
     print(columns)   
@@ -207,11 +216,11 @@ def train_and_predict(frame_interval, columns, number_of_points= None, number_of
                 }
         reader = tf.contrib.timeseries.NumpyReader(data) 
 
-    train_input_fn = tf.contrib.timeseries.RandomWindowInputFn(reader, batch_size=4, window_size=64)
+    train_input_fn = tf.contrib.timeseries.RandomWindowInputFn(reader, batch_size=batch_size, window_size=windows_size)
 
     estimator = ts_estimators.TimeSeriesRegressor(
-        model=_LSTMModel(num_features=num_features, num_units=128),
-        optimizer=tf.train.AdamOptimizer(0.001), model_dir=model_dir)    
+        model=_LSTMModel(num_features=num_features, num_units=num_units),
+        optimizer=tf.train.AdamOptimizer(learning_rate), model_dir=model_dir)    
     
 
     estimator.train(input_fn=train_input_fn, steps=number_of_steps_to_train)

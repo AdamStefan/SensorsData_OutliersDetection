@@ -18,6 +18,13 @@ class sensorData(object):
                         'Int_Umi_units','dataId','dataTimeStamp','id','sensorTimeStamp']
         ##################################################################################################################################
         self.__frameIntervals = None
+        self.__outliers = None
+        self.__step_size = None
+
+    def load_outliers(self,outliers_file):
+        self.__outliers=pd.read_csv(outliers_file)
+        self.__outliers['Date'] = pd.to_datetime(self.__outliers['Date'],format='%Y-%m-%d %H:%M:%S')
+        
     
     def loadJsonData(self, jsonDataFolder):
         sensorData = [] 
@@ -60,6 +67,15 @@ class sensorData(object):
     def dataFrame(self):
         return self.__data
 
+    @property
+    def outliers(self):
+        return self.__outliers
+
+    @property
+    def step_size(self):
+        return self.__step_size
+
+
     def plotColumn(self, x, y):
         plt.xlabel(x)
         plt.ylabel(y)
@@ -74,17 +90,20 @@ class sensorData(object):
         plt.show()
 
     def computeFramesIntervals(self):
-        dataFramesIntervals = []                
+        dataFramesIntervals = []                        
         currentIndex=0        
+        self.__step_size = self.dataFrame['date'].values[1] - self.dataFrame['date'].values[0]         
         for index in range (len(self.dataFrame)-1):
-            timeDelta = (self.dataFrame['date'].values[index+1] - self.dataFrame['date'].values[index])
+            timeDelta = (self.dataFrame['date'].values[index+1] - self.dataFrame['date'].values[index])            
             days =  timeDelta.astype('timedelta64[D]')/np.timedelta64(1, 'D')            
             currentIndex+=1
             if days>0:
                 frame = self.dataFrame[index - (currentIndex-1):index+1]
                 if len(frame)>1:                
                     dataFramesIntervals.append(self.dataFrame[index - (currentIndex-1):index+1])
-                currentIndex = 0                                  
+                currentIndex = 0
+            elif timeDelta < self.__step_size:                                 
+                self.__step_size = timeDelta                                  
         frame = self.dataFrame[len(self.dataFrame)-1-currentIndex:len(self.dataFrame)]
         if len(frame)>1:
             dataFramesIntervals.append(frame)   
@@ -108,7 +127,7 @@ class sensorData(object):
         plt.show()
 
     def computeMeanAndVariance(self, columnName):
-        return (np.mean(self.dataFrame[columnName].values), np.std(self.dataFrame[columnName].values))
+        return (np.nanmean(self.dataFrame[columnName].values), np.nanstd(self.dataFrame[columnName].values))
         
 
     def plotIndividualColumn(self):

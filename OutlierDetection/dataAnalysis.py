@@ -9,12 +9,13 @@ import dataUtility as du
 import detectOutliers as dO
 from scipy import signal
 
-class dataAnalysis(object):    
+class data_analysis(object):    
     def __init__(self, sensorData:du.sensorData):
         self.sensorData = sensorData
+        self.columns_of_interest = ['Ext_Tem','Int_Tem','Ext_Umi','Int_Umi','Int_Pu1','Int_Pu2','Ext_Vvi']
 
-
-    def timeAnalysis(self,printFigures):
+        
+    def time_analysis(self, printFigures):
         if printFigures:
             self.sensorData.plotColumns()
         mean, variance = self.sensorData.computeMeanAndVariance('Ext_Tem')
@@ -33,7 +34,7 @@ class dataAnalysis(object):
         print('Int_Pu2 - mean:'+ str(mean) + ' and variance:' + str(variance))
         
 
-    def __ffwWindowAnalysis(self, windowSize, column, frequenciesBand, printFigure):
+    def __fft_window_analysis(self, windowSize, column, frequenciesBand, printFigure):
         figTitle = "Frequency analysis (window size " + str(windowSize) +" )"
         yValues = self.sensorData.dataFrame[column].values
         ret = []
@@ -58,22 +59,22 @@ class dataAnalysis(object):
             plt.savefig(figTitle+".png")
             plt.show()                
     
-    def fftWindowAnalysis(self, windowSize=10):
+    def fft_window_Analysis(self, windowSize=10, columns_of_interest=[]):
+        if columns_of_interest is None or len(columns_of_interest) == 0:
+            columns_of_interest = self.columns_of_interest
         frequenciesBands = [windowSize-2,windowSize-1]
-        self.ffwWindowAnalysis(windowSize,'Ext_Tem',frequenciesBands,True)
-        self.ffwWindowAnalysis(windowSize,'Int_Tem',frequenciesBands,True)
-        self.ffwWindowAnalysis(windowSize,'Ext_Umi',frequenciesBands,True)
-        self.ffwWindowAnalysis(windowSize,'Int_Umi',frequenciesBands,True)
-        self.ffwWindowAnalysis(windowSize,'Int_Pu1',frequenciesBands,True)
-        self.ffwWindowAnalysis(windowSize,'Int_Pu2',frequenciesBands,True)
-        self.ffwWindowAnalysis(windowSize,'Ext_Vvi',frequenciesBands,True)
+        for index in range(len(columns_of_interest)):
+            self.__fft_window_analysis(windowSize, columns_of_interest[index], frequenciesBands, True)                
                            
 
     #FFT Analysis
-    def fftAnalysis(self,printFigure, displayFrequencyAnalisys):                
+    def fft_analysis(self, printFigure, displayFrequencyAnalisys, columns=[]):                
         frameIntervals = self.sensorData.computeFramesIntervals()
 
-        def printFFT(frequencies,frequenciesNames):
+        if (columns is None) or len(columns) == 0:                    
+            columns = self.columns_of_interest
+
+        def print_fft(frequencies, frequencies_names):
             f, axarr = plt.subplots(len(frequencies), sharex=True)           
             plt.xlabel('frequency unit')            
             for  i in range(len(frequencies)):
@@ -82,46 +83,57 @@ class dataAnalysis(object):
                 yValues = frequencies[i]
                 arguments = np.argsort(yValues)
                 periods = (1/xValues[arguments[0:20]]) / 3600
-                print('Dominant periods for ' +  frequenciesNames[i] +  ' are ' +str(periods))
-                print('Amplitude in high  frequency for' +  frequenciesNames[i] +  ' is ' +str(yValues[len(yValues)-1]))
-                title = frequenciesNames[i]
+                print('Dominant periods for ' +  frequencies_names[i] +  ' are ' +str(periods))
+                print('Amplitude in high  frequency for' +  frequencies_names[i] +  ' is ' +str(yValues[len(yValues)-1]))
+                title = frequencies_names[i]
                 axarr[i].plot(xValues, yValues)
                 axarr[i].set_title(title)        
-            figTitle = 'Frequency domain -' + ' '.join(frequenciesNames)    
+            figTitle = 'Frequency domain -' + ' '.join(frequencies_names)    
             plt.grid(True)
             plt.savefig(figTitle+".png")
             plt.show()
 
         if displayFrequencyAnalisys:
             for frame in frameIntervals:
-                data = frame            
-                amplitudesExt_Tem = np.abs(np.fft.fft(data['Ext_Tem'].values))
-                amplitutesInt_Tem = np.abs(np.fft.fft(data['Int_Tem'].values))
-                amplitudesExt_Umi = np.abs(np.fft.fft(data['Ext_Umi'].values))
-                amplitudesInt_Umi = np.abs(np.fft.fft(data['Int_Umi'].values))
-                amplitudesInt_Pu1 = np.abs(np.fft.fft(data['Int_Pu1'].values))
-                amplitudesInt_Pu2 = np.abs(np.fft.fft(data['Int_Pu2'].values))
-                amplitudesExt_Vvi = np.abs(np.fft.fft(data['Ext_Vvi'].values))
-                amplitudesToPrint =[amplitudesExt_Tem,amplitutesInt_Tem,amplitudesExt_Umi,amplitudesInt_Umi,amplitudesInt_Pu1,amplitudesInt_Pu2,amplitudesExt_Vvi]
-                amplitudesToPrintNames =['Ext_Tem','Int_Tem','Ext_Umi','Int_Umi','Int_Pu1','Int_Pu2','Ext_Vvi']
-                printFFT(amplitudesToPrint,amplitudesToPrintNames)
+                data = frame
+                amplitudes_to_print = []
+                amplitudesToPrintNames = []
+                for column_name in columns:                
+                    amplitudes= np.abs(np.fft.fft(data[column_name].values))
+                    amplitudes_to_print.append(amplitudes)                    
+                print_fft(amplitudes_to_print,columns)                                
 
         ######################################################################################
         # consider a window of 1 day
         data = self.sensorData.dataFrame
         windowSize = 10
         outlierDetector = dO.outlierDetector(data,'date')        
+        
+        dict_thresholds = {
+                                'Ext_Tem':25,
+                                'Ext_Umi':10,
+                                'Int_Umi':500,
+                                'Int_Pu1':250,
+                                'Int_Pu2':250,
+                                'Ext_Vvi':5,
+                                'Int_Tem':50
+                          }        
 
-        exteTempOutliers = outlierDetector.detectOutlierFFT('Ext_Tem',windowSize -2,25,windowSize= windowSize, printFigure=print)        
-        exteUmiOutliers = outlierDetector.detectOutlierFFT('Ext_Umi',windowSize -2,10,windowSize= windowSize,printFigure=print)        
-        exteIntUmiOutliers = outlierDetector.detectOutlierFFT('Int_Umi',windowSize -2,500,windowSize= windowSize,printFigure=print)        
-        exteIntPuOutliers = outlierDetector.detectOutlierFFT('Int_Pu1',windowSize -2,250,windowSize= windowSize,printFigure=print)        
-        exteIntPu2Outliers = outlierDetector.detectOutlierFFT('Int_Pu2',windowSize -2,250,windowSize= windowSize,printFigure=print)
-        exteExt_VviOutliers = outlierDetector.detectOutlierFFT('Ext_Vvi',windowSize -2,5,windowSize= windowSize,printFigure=print)
+        outlier_positions = []        
+        for column_index in range(len(columns)):
+            outliers = outlierDetector.detect_outlier_fft(columns[column_index], windowSize -2, dict_thresholds[columns[column_index]], windowSize= windowSize, printFigure=print)        
+            for outlier_index in range(len(outliers)):
+                outlier_item = {}
+                outlier_item["Date"] = data['date'][outliers[outlier_index]]
+                outlier_item["Feature"] = columns[column_index]
+                outlier_positions.append(outlier_item)
 
-        ######################################################################################
+        if len(outlier_positions)>0:
+            return pd.DataFrame(outlier_positions)        
 
-    def fftAnalysis_interval(self,printFigure, displayFrequencyAnalisys, frame_interval_index, columns = None):            
+        
+
+    def fft_analysis_interval(self, printFigure, displayFrequencyAnalisys, frame_interval_index, columns = None):            
         frameIntervals = self.sensorData.computeFramesIntervals()
         ######################################################################################
 
@@ -137,15 +149,7 @@ class dataAnalysis(object):
                 'Int_Pu2':250,
                 'Ext_Vvi':5,
                 'Int_Tem':50
-                }        
-
-        #exteTempOutliers = outlierDetector.detectOutlierFFT('Ext_Tem',windowSize -2,25,windowSize= windowSize, printFigure=print)        
-        #exteUmiOutliers = outlierDetector.detectOutlierFFT('Ext_Umi',windowSize -2,10,windowSize= windowSize,printFigure=print)        
-        #exteIntUmiOutliers = outlierDetector.detectOutlierFFT('Int_Umi',windowSize -2,500,windowSize= windowSize,printFigure=print)        
-        #exteIntPuOutliers = outlierDetector.detectOutlierFFT('Int_Pu1',windowSize -2,250,windowSize= windowSize,printFigure=print)        
-        #exteIntPu2Outliers = outlierDetector.detectOutlierFFT('Int_Pu2',windowSize -2,250,windowSize= windowSize,printFigure=print)
-        #exteExt_VviOutliers = outlierDetector.detectOutlierFFT('Ext_Vvi',windowSize -2,5,windowSize= windowSize,printFigure=print)
-        exteInt_TemOutliers = outlierDetector.detectOutlierFFT('Int_Tem',windowSize -2,50,windowSize= windowSize,printFigure=print)
+                }                
 
         if columns is None:
             columns = list(dict.keys())
@@ -154,7 +158,7 @@ class dataAnalysis(object):
         
         plt.figure(figsize=(12, len(columns)));
         for i in range(len(columns)):
-            outliers = outlierDetector.detectOutlierFFT(columns[i],windowSize -2,dict[columns[i]],windowSize= windowSize, printFigure=False)  
+            outliers = outlierDetector.detect_outlier_fft(columns[i],windowSize -2,dict[columns[i]],windowSize= windowSize, printFigure=False)  
             yValues = outlierDetector.data[columns[i]].values
             xValues = outlierDetector.data[outlierDetector.xColumn].values      
             handle_obs = plt.plot(xValues, yValues, c = dO.COLOR_PALETTE[i], label=columns[i])
@@ -167,21 +171,20 @@ class dataAnalysis(object):
         plt.xlabel= outlierDetector.xColumn
         plt.show()
 
-
         ######################################################################################    
 
     #Peculiarity Analysis
-    def peculiarityAnalysis(self, print):
+    def peculiarity_analysis(self, print):
         data = self.sensorData.dataFrame
         #######################################################################################
         outlierDetector = dO.outlierDetector(data,'dataTimeStamp')
-        results_ExtTemp = outlierDetector.detectOutlierPeculiarity('Ext_Tem',printFigure=print)
-        results_Int_Tem = outlierDetector.detectOutlierPeculiarity('Int_Tem',printFigure=print)
-        results_Ext_Umi = outlierDetector.detectOutlierPeculiarity('Ext_Umi',printFigure=print)
-        results_Int_Umi = outlierDetector.detectOutlierPeculiarity('Int_Umi',printFigure=print)
-        results_Int_Pu1 = outlierDetector.detectOutlierPeculiarity('Int_Pu1',printFigure=print)
-        results_Int_Pu2 = outlierDetector.detectOutlierPeculiarity('Int_Pu2',printFigure=print)
-        results_Ext_Vvi = outlierDetector.detectOutlierPeculiarity('Ext_Vvi',printFigure=print)
+        results_ExtTemp = outlierDetector.detect_outlier_peculiarity('Ext_Tem',printFigure=print)
+        results_Int_Tem = outlierDetector.detect_outlier_peculiarity('Int_Tem',printFigure=print)
+        results_Ext_Umi = outlierDetector.detect_outlier_peculiarity('Ext_Umi',printFigure=print)
+        results_Int_Umi = outlierDetector.detect_outlier_peculiarity('Int_Umi',printFigure=print)
+        results_Int_Pu1 = outlierDetector.detect_outlier_peculiarity('Int_Pu1',printFigure=print)
+        results_Int_Pu2 = outlierDetector.detect_outlier_peculiarity('Int_Pu2',printFigure=print)
+        results_Ext_Vvi = outlierDetector.detect_outlier_peculiarity('Ext_Vvi',printFigure=print)
         totalOutliers = [results_ExtTemp, results_Int_Tem, results_Ext_Umi, results_Int_Umi, results_Int_Pu2, results_Ext_Vvi]
 
         dates = []

@@ -31,8 +31,31 @@ class outlierDetector(object):
             return index_of_outlier[0]
         else:
             return None
+        
+    def display_data_and_outliers(time, frame, columns, outliers, start_step):
+        plt.figure(figsize=(15, len(frame)))
 
-    def detectOutlierFFT(self, yColumn, threshold_freq=8, frequency_amplitude = 20, windowSize = 10, printFigure = True):        
+        if start_step > 0:
+            plt.axvline(time[start_step], linestyle="dotted", linewidth=4, color='g')
+
+        handles = [] 
+        for feature_index in range(len(columns)):
+           handle_obs = plt.plot(time,frame[columns[feature_index]].values,color=COLOR_PALETTE[feature_index],label=columns[feature_index]+"-observation")           
+           handles.append(handle_obs[0])
+                   
+        plt.legend(handles=handles, loc="upper left")
+        
+        for index in range(len(outliers)):
+            time_value = outliers['Date'][index]
+            feature = outliers['Feature'][index]
+            print_outlier = True
+            if start_step>0 and time[start_step]>np.datetime64(time_value) and time[-1]<np.datetime64(time_value):
+                print_outlier = False
+            if print_outlier:
+                itemindex = np.where(time==np.datetime64(time_value))
+                plt.plot(time_value,frame[feature].values[itemindex[0][0]],'ro')
+
+    def detect_outlier_fft(self, yColumn, threshold_freq=8, frequency_amplitude = 20, windowSize = 10, printFigure = True):        
         figTitle = yColumn +" - Outliers using FFT for threshold_freq="+str(threshold_freq)+" and frequency_amplitude="+ str(frequency_amplitude)
         yValues = self.data[yColumn].values
         xValues = self.data[self.xColumn].values   
@@ -68,7 +91,7 @@ class outlierDetector(object):
         observed_data_normalized = (observed_data-mean_values)/(std_values + epsilon)
         predicted_data_normalized = (predicted_data -mean_values)/(std_values + epsilon)
 
-        plt.title(title)
+        
         plt.figure(figsize=(15, len(mean_values)))
         plt.axvline(time[len(observed_data)- last_k_steps], linestyle="dotted", linewidth=4, color='g')
         
@@ -81,7 +104,7 @@ class outlierDetector(object):
         
         plt.legend(handles=handles, loc="upper left")               
 
-        outlier_positions=[]
+        outlier_positions=[]        
         acumulator = 0
         for i in range(last_k_steps):
             index= len(observed_data)- last_k_steps + i
@@ -94,7 +117,11 @@ class outlierDetector(object):
                 else:
                     acumulator = acumulator/2 
                 if acumulator > 5:
-                    outlier_positions.append(index)
+                    #Date
+                    outlier_item = {}
+                    outlier_item["Date"] = time[index]
+                    outlier_item["Feature"] = columns[feature_index]
+                    outlier_positions.append(outlier_item)
                     if print_outliers:
                         plt.plot(time[index],observed_data[index][feature_index],'ro')
                     print("Outlier detected on index",index, "for feature", columns[feature_index])
@@ -103,11 +130,17 @@ class outlierDetector(object):
                     print(observed_value_at_index[feature_index],predicted_data_at_index[feature_index])
                     print("Mean value",mean_values[feature_index],"Variance",std_values[feature_index])
                     print("----------------------------------------------------------------------")
-
+        plt.title(title)
         plt.show()
-        return outlier_positions
+        if len(outlier_positions)>0:
+            return pd.DataFrame(outlier_positions)
+        return None
+
+
+        
+        
                                 
-    def detectOutlierPeculiarity(self,yColumn,max_anoms = 0.05, alpha = 0.001, direction='both', printFigure=True):
+    def detect_outlier_peculiarity(self,yColumn,max_anoms = 0.05, alpha = 0.001, direction='both', printFigure=True):
         twoColumnsFrame = self.data[[self.xColumn, yColumn]]
         results = detect_ts(twoColumnsFrame, max_anoms=0.05, alpha=0.001, direction='both')        
 

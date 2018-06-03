@@ -16,48 +16,6 @@ import arima_analysis as ar
 data_path = "..\\data2"
 outliers_path="..\\outliers.txt"
 
-#sensorData = dataUtility.sensorData()
-#sensorData.loadJsonData(dataPath)
-#sensorData.dataFrame.to_csv('sensorData.csv', sep=',', encoding='utf-8') # save the data to a csv file
-#frame_intervals = sensorData.computeFramesIntervals()
-
-
-
-#interval_index = 2
-
-#number_of_steps = 20000
-#number_of_points = 2000
-#columns = ['Ext_Tem','Ext_Umi','Ext_Vvi','Int_Pu1','Int_Pu2','Int_Tem','Int_Umi']
-#columns = ['Ext_Tem','Ext_Vvi','Int_Tem']
-
-#model_fit = ar.fit_arima_and_predict(frame_intervals[interval_index],'date',columns,10,1,1)
-#print(model_fit.sumary)
-
-
-
-#train = False
-#if train:
-#    estimator =  nn_ts.train_and_predict(frame_intervals[interval_index], columns, number_of_points, number_of_steps)
-#observed, prediction =  nn_ts.predict(frame_intervals[interval_index], columns)
-
-#outlierDetector = dO.outlierDetector(frame_intervals[interval_index],'date')        
-#outlierDetector.detect_outlier_from_prediction(frame_intervals[interval_index]['date'].values, observed, prediction, len(frame_intervals[interval_index])-number_of_points, columns)
-
-
-#analysis = da.dataAnalysis(sensorData)
-
-
-#analysis.timeAnalysis(False)
-##analysis.fftWindowAnalysis()
-##analysis.fftAnalysis(True,False)
-#analysis.fftAnalysis_interval(True,False,3,columns)
-
-##analysis.peculiarityAnalysis(sensorData.dataFrame, True)
-     
-
-##Mahalanobis Analysis
-##Principal Component Analysis
-
 
 def predict_values(method, frame_interval, columns, parameters):
     if method == 'ARIMA':
@@ -70,20 +28,26 @@ def predict_values(method, frame_interval, columns, parameters):
         observations, predictions =  nn_ts.predict(frame_interval, columns)
         return observations, predictions
 
-def detect_outlier_from_prediction(frame_interval, observations, predictions, columns, number_of_points, title):
+def detect_outlier_from_prediction(frame_interval, observations, predictions, columns, number_of_points, print_outliers, print_only_validation, title):
     outlier_detector = dO.outlierDetector(frame_interval,'date')        
-    return outlier_detector.detect_outlier_from_prediction(frame_interval['date'].values, observations, predictions, len(frame_interval)-number_of_points, columns, title = title)
+    return outlier_detector.detect_outlier_from_prediction(frame_interval['date'].values, observations, predictions, len(frame_interval)-number_of_points, columns, print_outliers = print_outliers, print_only_validation = print_only_validation , title = title)
 
 def predict_and_detect_outliers(method:str, frame_interval:pd.DataFrame, columns:list, parameters):       
     observations, predictions = predict_values(method, frame_interval, columns, parameters)
     number_of_points = parameters["number_of_points_used_for_training"]
-    outliers_predicted = detect_outlier_from_prediction(frame_interval, observations, predictions, columns, number_of_points, method)
+    if parameters["print_outliers"] == True:
+        title = "Outliers using " + method
+    else:
+        title = "Prediction using " + method       
+    outliers_predicted = detect_outlier_from_prediction(frame_interval, observations, predictions, columns, number_of_points, parameters["print_outliers"], parameters["print_only_validation"], title)
     return outliers_predicted
        
-def compute_precision_and_recall(outliers, predicted_outliers, window_size):    
+def compute_precision_and_recall(outliers, predicted_outliers, window_size, start_time, end_time):    
     outliers_status = np.zeros(len(outliers))
+    predicted_outliers = predicted_outliers[predicted_outliers['Date']>=start_time]
+    predicted_outliers = predicted_outliers[predicted_outliers['Date']<=end_time]
+    
     predicted_outliers_status =  np.zeros(len(predicted_outliers))
-
 
     print("Computing precision")
     for predicted_index in range(len(predicted_outliers)):
@@ -148,51 +112,67 @@ if __name__ == "__main__":
     ### Which columns in which to detect outliers
     columns = ['Ext_Tem','Ext_Vvi','Int_Tem']
     start_step = 2000
+    print_only_validation = True
 
 
     arima_detect_parameters = {
                                 "definition":(15,1,1), #p,d,q parameters for arima models
-                                "number_of_points_used_for_training": start_step
+                                "number_of_points_used_for_training": start_step,
+                                "print_outliers":True,
+                                "print_only_validation":print_only_validation
                                }
     
     nn_parameters = {
                       "force_train":False,
                       "number_of_steps":20000,
-                      "number_of_points_used_for_training": start_step
+                      "number_of_points_used_for_training": start_step,
+                      "print_outliers":True,
+                      "print_only_validation":print_only_validation
                      }
 
     ### Detect Outliers From Predictions
-    #predicted_outliers_arima = predict_and_detect_outliers("ARIMA", frame_interval, columns, arima_detect_parameters)
 
-    predicted_outliers_lstm = predict_and_detect_outliers("LSTM", frame_interval, columns, nn_parameters)
+    dO.outlierDetector.display_data_and_outliers(frame_interval['date'].values[start_step:], frame_interval[start_step:], columns, sensor_data.outliers, start_step = 0, title = "Outliers")
 
-    compute_precision_and_recall(sensor_data.outliers, predicted_outliers_lstm, window_size=sensor_data.step_size)
+    #region ARIMA
+
+    #predicted_outliers_arima, mse = predict_and_detect_outliers("ARIMA", frame_interval, columns, arima_detect_parameters)
+    #precision_arima, recall_arima, f_score_arima = compute_precision_and_recall(sensor_data.outliers, predicted_outliers_arima, window_size=sensor_data.step_size, start_time=frame_interval['date'].values[start_step], end_time=frame_interval['date'].values[-1])
+    #print(precision_arima, recall_arima, f_score_arima)
+
+    ##region neural network
+
+    predicted_outliers_lstm, mse = predict_and_detect_outliers("LSTM", frame_interval, columns, nn_parameters)
+    precision, recall, f_score = compute_precision_and_recall(sensor_data.outliers, predicted_outliers_lstm, window_size=sensor_data.step_size, start_time=frame_interval['date'].values[start_step], end_time=frame_interval['date'].values[-1])
+    print(precision, recall, f_score)
+
+    #endregion
 
 
 
-    ### Compute data analysis
+    #### Compute data analysis
 
     analysis = da.data_analysis(sensor_data)
-
     analysis.time_analysis(False)
+
+
+    # fft
     analysis.fft_window_Analysis()
+    fft_outliers = analysis.fft_analysis_interval(True, False, frame_interval, columns)
+    if print_only_validation == False:   
+        dO.outlierDetector.display_data_and_outliers(frame_interval['date'].values, frame_interval, columns, fft_outliers, start_step, "Outliers using FFT")
+    else:
+        dO.outlierDetector.display_data_and_outliers(frame_interval['date'].values[start_step:], frame_interval[start_step:], columns, fft_outliers, 0, "Outliers using FFT")
 
-    fft_outliers = analysis.fft_analysis(True, False, columns)   
-
-    dO.outlierDetector.display_data_and_outliers(frame_interval['date'].values, frame_interval, columns, fft_outliers, start_step)
-    
-    analysis.peculiarity_analysis(sensor_data.dataFrame, True)
-
-    
-
-
+    precision_fft, recall_fft, f_score_fft = compute_precision_and_recall(sensor_data.outliers, fft_outliers, window_size=sensor_data.step_size, start_time=frame_interval['date'].values[start_step], end_time=frame_interval['date'].values[-1])
+    print(precision_fft, recall_fft, f_score_fft)
 
 
-
-
-
-
-
-
-
-
+    # peculiarity
+    peculiarity_outliers = analysis.peculiarity_analysis(frame_interval, columns, True)
+    if print_only_validation == False:   
+        dO.outlierDetector.display_data_and_outliers(frame_interval['date'].values, frame_interval, columns, peculiarity_outliers, start_step, "Outliers using Twitter algorithm")
+    else:
+        dO.outlierDetector.display_data_and_outliers(frame_interval['date'].values[start_step:], frame_interval[start_step:], columns, peculiarity_outliers, 0, "Outliers using Twitter algorithm")
+    precision_peculiarity, recall_peculiarity, f_score_peculiarity = compute_precision_and_recall(sensor_data.outliers, peculiarity_outliers, window_size=sensor_data.step_size, start_time=frame_interval['date'].values[start_step], end_time=frame_interval['date'].values[-1])
+    print(precision_peculiarity, recall_peculiarity, f_score_peculiarity)

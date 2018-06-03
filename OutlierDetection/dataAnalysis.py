@@ -124,7 +124,7 @@ class data_analysis(object):
             outliers = outlierDetector.detect_outlier_fft(columns[column_index], windowSize -2, dict_thresholds[columns[column_index]], windowSize= windowSize, printFigure=print)        
             for outlier_index in range(len(outliers)):
                 outlier_item = {}
-                outlier_item["Date"] = data['date'][outliers[outlier_index]]
+                outlier_item["Date"] = data['date'].values[outliers[outlier_index]]
                 outlier_item["Feature"] = columns[column_index]
                 outlier_positions.append(outlier_item)
 
@@ -133,12 +133,9 @@ class data_analysis(object):
 
         
 
-    def fft_analysis_interval(self, printFigure, displayFrequencyAnalisys, frame_interval_index, columns = None):            
-        frameIntervals = self.sensorData.computeFramesIntervals()
-        ######################################################################################
-
+    def fft_analysis_interval(self, printFigure, displayFrequencyAnalisys, frame_interval, columns = None):                           
         # consider a window of 1 day
-        data = frameIntervals[frame_interval_index]
+        data = frame_interval
         windowSize = 10
         outlierDetector = dO.outlierDetector(data,'date')
         dict = {
@@ -157,6 +154,8 @@ class data_analysis(object):
         handles = [] 
         
         plt.figure(figsize=(12, len(columns)));
+        outlier_positions = []
+
         for i in range(len(columns)):
             outliers = outlierDetector.detect_outlier_fft(columns[i],windowSize -2,dict[columns[i]],windowSize= windowSize, printFigure=False)  
             yValues = outlierDetector.data[columns[i]].values
@@ -165,36 +164,57 @@ class data_analysis(object):
             handles.append(handle_obs[0])
             if len(outliers) > 0:
                 plt.plot(xValues[outliers], yValues[np.asanyarray(outliers)], 'ro');
+
+                for outlier_index in range(len(outliers)):
+                    outlier_item = {}
+                    outlier_item["Date"] = data['date'].values[outliers[outlier_index]]
+                    outlier_item["Feature"] = columns[i]
+                    outlier_positions.append(outlier_item)
+
+
         figTitle = "- Outliers using FFT -"
         plt.legend(handles=handles, loc="upper left")
         plt.title(figTitle)
         plt.xlabel= outlierDetector.xColumn
         plt.show()
 
+        if len(outlier_positions)>0:
+            return pd.DataFrame(outlier_positions)
+
         ######################################################################################    
 
     #Peculiarity Analysis
-    def peculiarity_analysis(self, print):
-        data = self.sensorData.dataFrame
+    def peculiarity_analysis(self, frame, columns, print):
+        data = frame
+        outlier_positions = []
+        totalOutliers = []
+        
         #######################################################################################
-        outlierDetector = dO.outlierDetector(data,'dataTimeStamp')
-        results_ExtTemp = outlierDetector.detect_outlier_peculiarity('Ext_Tem',printFigure=print)
-        results_Int_Tem = outlierDetector.detect_outlier_peculiarity('Int_Tem',printFigure=print)
-        results_Ext_Umi = outlierDetector.detect_outlier_peculiarity('Ext_Umi',printFigure=print)
-        results_Int_Umi = outlierDetector.detect_outlier_peculiarity('Int_Umi',printFigure=print)
-        results_Int_Pu1 = outlierDetector.detect_outlier_peculiarity('Int_Pu1',printFigure=print)
-        results_Int_Pu2 = outlierDetector.detect_outlier_peculiarity('Int_Pu2',printFigure=print)
-        results_Ext_Vvi = outlierDetector.detect_outlier_peculiarity('Ext_Vvi',printFigure=print)
-        totalOutliers = [results_ExtTemp, results_Int_Tem, results_Ext_Umi, results_Int_Umi, results_Int_Pu2, results_Ext_Vvi]
+        
+        for column in columns:
+            outlierDetector = dO.outlierDetector(data,'dataTimeStamp')
+            outliers = outlierDetector.detect_outlier_peculiarity(frame, column, printFigure=print)
+            totalOutliers.append(outliers)                   
 
         dates = []
         data['isOutlier'] = 0
 
-        for outliers in totalOutliers:
+        for feature_outliers_index in range(len(totalOutliers)):
+            outliers = totalOutliers[feature_outliers_index]
             for i in range(len(outliers['anoms'])):
+
                 dates.append(outliers['anoms'].index[i])
+                itemindex = np.where(data['date'].values==np.datetime64(outliers['anoms'].index[i]))
                 data['isOutlier'][data['date']==outliers['anoms'].index[i]] = 1
+
+                outlier_item = {}
+                outlier_item["Date"] = frame['date'].values[itemindex[0][0]]
+                outlier_item["Feature"] = columns[feature_outliers_index]
+                outlier_positions.append(outlier_item)    
 
 
         data.to_csv('sensorDataWithOutliers.csv', sep=',', encoding='utf-8') # save the data to a csv file
         ########################################################################################
+
+        if len(outlier_positions)>0:
+            return pd.DataFrame(outlier_positions)
